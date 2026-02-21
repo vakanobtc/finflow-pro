@@ -122,7 +122,6 @@ export default function App() {
   const [note, setNote] = useState("");
   const [transactions, setTransactions] = useState([]);
   const [view, setView] = useState("main");
-  const [flash, setFlash] = useState(null);
   const [currency, setCurrency] = useState(CURRENCIES[0]);
   const [budget, setBudget] = useState(5000000);
   const [budgetInput, setBudgetInput] = useState("5000000");
@@ -180,7 +179,6 @@ export default function App() {
     if (!amount || amount <= 0 || !mode) return;
     const cat = categories.find(c => c.id === selectedCat);
     setTransactions(p => [{ id: Date.now(), type: mode, amount, category: cat || null, note: note.trim(), timestamp: Date.now() }, ...p]);
-    setFlash(mode); setTimeout(() => setFlash(null), 600);
     setDisplay("0"); setNote(""); setMode(null); setSelectedCat(null);
   };
 
