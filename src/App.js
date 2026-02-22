@@ -141,16 +141,17 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [activeMk, setActiveMk] = useState(currentMonthKey());
 
-  useEffect(() => {
-    const mk = currentMonthKey();
-    if (mk !== activeMk) {
-      const tIn = transactions.filter(t=>t.type==="in").reduce((s,t)=>s+t.amount,0);
-      const tOut = transactions.filter(t=>t.type==="out").reduce((s,t)=>s+t.amount,0);
-      setMonthlyData(prev => ({ ...prev, [activeMk]: { transactions, totalIn:tIn, totalOut:tOut, balance:tIn-tOut, budget } }));
-      setTransactions([]);
-      setActiveMk(mk);
-    }
-  }, []);
+  
+useEffect(() => {
+  const mk = currentMonthKey();
+  if (mk !== activeMk) {
+    const tIn = transactions.filter(t=>t.type==="in").reduce((s,t)=>s+t.amount,0);
+    const tOut = transactions.filter(t=>t.type==="out").reduce((s,t)=>s+t.amount,0);
+    setMonthlyData(prev => ({ ...prev, [activeMk]: { transactions, totalIn:tIn, totalOut:tOut, balance:tIn-tOut, budget } }));
+    setTransactions([]);
+    setActiveMk(mk);
+  }
+}, []);
 
   const totalIn = useMemo(() => transactions.filter(t=>t.type==="in").reduce((s,t)=>s+t.amount,0),[transactions]);
   const totalOut = useMemo(() => transactions.filter(t=>t.type==="out").reduce((s,t)=>s+t.amount,0),[transactions]);
