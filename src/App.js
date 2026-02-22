@@ -208,11 +208,19 @@ export default function App() {
           </div>
 
           {/* Budget corner */}
-          <div style={{ position: "absolute", top: 60, right: 16, background: budgetColor + "22", border: `1px solid ${budgetColor}44`, borderRadius: 14, padding: "6px 10px", textAlign: "center", backdropFilter: "blur(10px)", zIndex: 10 }}>
-            <div style={{ fontSize: 16 }}>{budgetEmoji}</div>
-            <div style={{ color: budgetColor, fontSize: 10, fontWeight: 700 }}>{budgetMsg}</div>
-            <div style={{ color: budgetColor, fontSize: 10 }}>{budgetPct.toFixed(0)}%</div>
-          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px 0" }}>
+  <div style={{ background: T.card, borderRadius: 12, padding: "5px 12px", backdropFilter: "blur(10px)" }}>
+    <div style={{ color: "#8E8E93", fontSize: 9 }}>MES ACTUAL</div>
+    <div style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>{monthLabel(activeMk)}</div>
+  </div>
+  <div style={{ background: budgetColor + "22", border: `1px solid ${budgetColor}44`, borderRadius: 14, padding: "5px 14px", textAlign: "center", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", gap: 8 }}>
+    <span style={{ fontSize: 16 }}>{budgetEmoji}</span>
+    <div>
+      <div style={{ color: budgetColor, fontSize: 11, fontWeight: 700 }}>{budgetMsg}</div>
+      <div style={{ color: budgetColor, fontSize: 10 }}>{budgetPct.toFixed(0)}% del presupuesto</div>
+    </div>
+  </div>
+</div>
 
           {/* Nav colapsable */}
           <div style={{ padding: "10px 16px 0", position: "relative", zIndex: 20 }}>
