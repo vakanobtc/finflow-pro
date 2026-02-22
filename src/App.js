@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { supabase } from "./supabase";
 
 const EMOJIS = ["🍔","🎮","🏠","🚗","💼","🛒","✈️","🎵","💊","📚","🍕","☕","🐶","👗","💇","🏋️","🎬","🍺","💻","📱","🎁","🔧","🏥","⚡","🌮","🍣","🎯","🚀","💰","🏦","🎪","🌿","🍷","🎸","🏄","🎨"];
 const DEFAULT_CATS = [
@@ -102,22 +103,73 @@ const exportCSV = (txs, giving, cur, budgetPct, budget) => {
   const tOut = txs.filter(t=>t.type==="out").reduce((s,t)=>s+t.amount,0);
   const bal = tIn - tOut;
   let csv = "\uFEFF";
-  csv += `PA DONDE SE FUE LA PLATA - REPORTE\nGenerado:,${new Date().toLocaleDateString("es-CO",{dateStyle:"full"})}\nMoneda:,${cur.code}\n\n`;
+  csv += `PA DONDE SE FUE LA PLATA\nGenerado:,${new Date().toLocaleDateString("es-CO",{dateStyle:"full"})}\nMoneda:,${cur.code}\n\n`;
   csv += `RESUMEN\nEntradas,${tIn.toFixed(2)}\nSalidas,${tOut.toFixed(2)}\nBalance,${bal.toFixed(2)}\nPresupuesto,${budget.toFixed(2)}\nUso,${budgetPct.toFixed(1)}%\n\n`;
-  csv += `DIEZMOS Y OFRENDAS\nConcepto,Porcentaje,Base,Monto\n`;
+  csv += `DIEZMOS\nConcepto,Porcentaje,Base,Monto\n`;
   giving.filter(g=>g.active).forEach(g => {
     const base = g.baseType==="gross" ? tIn : Math.max(bal,0);
     csv += `"${g.name}",${g.pct}%,"${g.baseType==="gross"?"Brutos":"Neta"}",${((base*g.pct)/100).toFixed(2)}\n`;
   });
   csv += `\nMOVIMIENTOS\nFecha,Tipo,Monto,Categoría,Nota\n`;
-  txs.forEach(t => { csv += `${fmtShort(t.timestamp)},${t.type==="in"?"Entrada":"Salida"},${t.amount.toFixed(2)},${t.category?.label||"Sin categoría"},"${(t.note||"").replace(/,/g,";")}"\n`; });
+  txs.forEach(t => { csv += `${fmtShort(t.timestamp)},${t.type==="in"?"Entrada":"Salida"},${t.amount.toFixed(2)},${t.category_label||"Sin categoría"},"${(t.note||"").replace(/,/g,";")}"\n`; });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));
   a.download = `PaDondeSeFueLaPlata_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
 };
 
+// ── LOGIN SCREEN ──
+const LoginScreen = ({ onLogin }) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isNew, setIsNew] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const handleAuth = async () => {
+    setLoading(true); setMsg("");
+    if (isNew) {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) setMsg(error.message);
+      else setMsg("✅ Revisa tu email para confirmar tu cuenta");
+    } else {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) setMsg(error.message);
+      else onLogin(data.user);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{minHeight:"100vh",background:"#111",display:"flex",justifyContent:"center",alignItems:"center",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif"}}>
+      <div style={{width:390,minHeight:844,borderRadius:55,background:"#1C1C1E",boxShadow:"0 0 0 1px #3A3A3C,0 40px 80px rgba(0,0,0,0.9)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 32px"}}>
+        <div style={{fontSize:60,marginBottom:16}}>💸</div>
+        <div style={{color:"#fff",fontSize:22,fontWeight:800,textAlign:"center",marginBottom:4}}>Pa' Donde Se Fue La Plata</div>
+        <div style={{color:"#30D158",fontSize:11,fontWeight:600,letterSpacing:1,marginBottom:40}}>FINANZAS PARA MENTES ACTIVAS</div>
+
+        <div style={{width:"100%",marginBottom:12}}>
+          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="📧 Email" type="email" style={{width:"100%",padding:"14px 16px",borderRadius:14,border:"none",background:"#2C2C2E",color:"#fff",fontSize:15,outline:"none",boxSizing:"border-box",marginBottom:10}}/>
+          <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="🔒 Contraseña" type="password" style={{width:"100%",padding:"14px 16px",borderRadius:14,border:"none",background:"#2C2C2E",color:"#fff",fontSize:15,outline:"none",boxSizing:"border-box"}}/>
+        </div>
+
+        {msg && <div style={{color:msg.startsWith("✅")?"#30D158":"#FF453A",fontSize:13,marginBottom:12,textAlign:"center"}}>{msg}</div>}
+
+        <button onClick={handleAuth} disabled={loading||!email||!password} style={{width:"100%",padding:"16px",borderRadius:18,border:"none",cursor:"pointer",background:loading||!email||!password?"#3A3A3C":"#30D158",color:"#fff",fontSize:17,fontWeight:700,marginBottom:16,transition:"all 0.2s"}}>
+          {loading?"Cargando...":(isNew?"🚀 Crear cuenta":"✓ Entrar")}
+        </button>
+
+        <button onClick={()=>{setIsNew(p=>!p);setMsg("");}} style={{background:"none",border:"none",color:"#8E8E93",fontSize:14,cursor:"pointer"}}>
+          {isNew?"¿Ya tienes cuenta? Inicia sesión":"¿Primera vez? Crea tu cuenta"}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── MAIN APP ──
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [loadingUser, setLoadingUser] = useState(true);
   const [display, setDisplay] = useState("0");
   const [mode, setMode] = useState(null);
   const [selCat, setSelCat] = useState(null);
@@ -140,17 +192,81 @@ export default function App() {
   const [monthlyData, setMonthlyData] = useState({});
   const [transactions, setTransactions] = useState([]);
   const [activeMk, setActiveMk] = useState(currentMonthKey());
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
+  // Check session on load
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user || null);
+      setLoadingUser(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user || null);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  // Load data when user logs in
+  const loadData = useCallback(async (uid) => {
     const mk = currentMonthKey();
-    if (mk !== activeMk) {
-      const tIn = transactions.filter(t=>t.type==="in").reduce((s,t)=>s+t.amount,0);
-      const tOut = transactions.filter(t=>t.type==="out").reduce((s,t)=>s+t.amount,0);
-      setMonthlyData(prev => ({ ...prev, [activeMk]: { transactions, totalIn:tIn, totalOut:tOut, balance:tIn-tOut, budget } }));
-      setTransactions([]);
-      setActiveMk(mk);
+    // Load transactions for current month
+    const { data: txData } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("user_id", uid)
+      .eq("month_key", mk)
+      .order("timestamp", { ascending: false });
+    if (txData) setTransactions(txData.map(t => ({
+      id: t.id, type: t.type, amount: t.amount,
+      category: t.category_id ? { id: t.category_id, label: t.category_label, emoji: t.category_emoji, color: t.category_color } : null,
+      category_label: t.category_label,
+      note: t.note, timestamp: t.timestamp
+    })));
+
+    // Load archives
+    const { data: archData } = await supabase
+      .from("monthly_archives")
+      .select("*")
+      .eq("user_id", uid);
+    if (archData) {
+      const arch = {};
+      archData.forEach(a => { arch[a.month_key] = { totalIn: a.total_in, totalOut: a.total_out, balance: a.balance, budget: a.budget, transactions: a.transactions || [] }; });
+      setMonthlyData(arch);
+    }
+
+    // Load config
+    const { data: cfg } = await supabase
+      .from("user_config")
+      .select("*")
+      .eq("user_id", uid)
+      .single();
+    if (cfg) {
+      const cur = CURRENCIES.find(c => c.code === cfg.currency_code);
+      if (cur) setCurrency(cur);
+      if (cfg.budget) { setBudget(cfg.budget); setBudgetInput(String(cfg.budget)); }
+      if (cfg.categories) setCats(cfg.categories);
+      if (cfg.giving) setGiving(cfg.giving);
+      const thm = THEMES.find(t => t.id === cfg.theme_id);
+      if (thm) setTheme(thm);
     }
   }, []);
+
+  useEffect(() => { if (user) loadData(user.id); }, [user, loadData]);
+
+  // Save config to Supabase
+  const saveConfig = useCallback(async (updates) => {
+    if (!user) return;
+    await supabase.from("user_config").upsert({
+      user_id: user.id,
+      currency_code: currency.code,
+      budget,
+      categories: cats,
+      giving,
+      theme_id: theme.id,
+      ...updates,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id" });
+  }, [user, currency, budget, cats, giving, theme]);
 
   const totalIn = useMemo(() => transactions.filter(t=>t.type==="in").reduce((s,t)=>s+t.amount,0),[transactions]);
   const totalOut = useMemo(() => transactions.filter(t=>t.type==="out").reduce((s,t)=>s+t.amount,0),[transactions]);
@@ -192,22 +308,58 @@ export default function App() {
     setDisplay(p=>p==="0"?String(k):p+k);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     const amount = parseFloat(display);
     if (!amount||amount<=0||!mode) return;
     const cat = cats.find(c=>c.id===selCat);
-    setTransactions(p=>[{id:Date.now(),type:mode,amount,category:cat||null,note:note.trim(),timestamp:Date.now()},...p]);
+    const ts = Date.now();
+    const mk = currentMonthKey();
+    setSaving(true);
+    const newTx = { type:mode, amount, category: cat||null, category_label: cat?.label||null, note:note.trim(), timestamp:ts };
+
+    if (user) {
+      const { data } = await supabase.from("transactions").insert({
+        user_id: user.id, type: mode, amount,
+        category_id: cat?.id||null, category_label: cat?.label||null,
+        category_emoji: cat?.emoji||null, category_color: cat?.color||null,
+        note: note.trim(), month_key: mk, timestamp: ts
+      }).select().single();
+      if (data) newTx.id = data.id;
+    } else {
+      newTx.id = Date.now();
+    }
+
+    setTransactions(p=>[newTx,...p]);
     setDisplay("0"); setNote(""); setMode(null); setSelCat(null);
+    setSaving(false);
   };
 
-  const closeMonth = () => {
+  const closeMonth = async () => {
     const tIn = transactions.filter(t=>t.type==="in").reduce((s,t)=>s+t.amount,0);
     const tOut = transactions.filter(t=>t.type==="out").reduce((s,t)=>s+t.amount,0);
-    setMonthlyData(prev => ({ ...prev, [activeMk]: { transactions, totalIn:tIn, totalOut:tOut, balance:tIn-tOut, budget } }));
+    const archiveData = { totalIn:tIn, totalOut:tOut, balance:tIn-tOut, budget, transactions };
+    if (user) {
+      await supabase.from("monthly_archives").upsert({
+        user_id: user.id, month_key: activeMk,
+        total_in: tIn, total_out: tOut, balance: tIn-tOut,
+        budget, transactions
+      }, { onConflict: "user_id,month_key" });
+    }
+    setMonthlyData(prev => ({ ...prev, [activeMk]: archiveData }));
     const [y,m] = activeMk.split("-").map(Number);
     const next = m===12 ? `${y+1}-01` : `${y}-${String(m+1).padStart(2,"0")}`;
     setTransactions([]); setActiveMk(next);
   };
+
+  const handleLogout = async () => { await supabase.auth.signOut(); setUser(null); setTransactions([]); setMonthlyData({}); };
+
+  if (loadingUser) return (
+    <div style={{minHeight:"100vh",background:"#111",display:"flex",justifyContent:"center",alignItems:"center"}}>
+      <div style={{color:"#fff",fontSize:40}}>💸</div>
+    </div>
+  );
+
+  if (!user) return <LoginScreen onLogin={setUser}/>;
 
   const T = theme;
   const bgStyle = customBg ? {backgroundImage:`url(${customBg})`,backgroundSize:"cover",backgroundPosition:"center"} : {background:T.bg};
@@ -227,13 +379,13 @@ export default function App() {
             <span style={{color:"#fff",fontSize:12}}>●●● 📶 🔋</span>
           </div>
 
-          {/* App title */}
+          {/* Title */}
           <div style={{textAlign:"center",padding:"6px 20px 0"}}>
-            <div style={{color:"#fff",fontSize:15,fontWeight:800,letterSpacing:-0.5}}>💸 Pa' Donde Se Fue La Plata</div>
+            <div style={{color:"#fff",fontSize:15,fontWeight:800}}>💸 Pa' Donde Se Fue La Plata</div>
             <div style={{color:T.accent,fontSize:9,fontWeight:600,letterSpacing:1}}>FINANZAS PARA MENTES ACTIVAS</div>
           </div>
 
-          {/* Mes + Presupuesto — siempre visible debajo del título */}
+          {/* Mes + Presupuesto */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 16px 0"}}>
             <div style={{background:T.card,borderRadius:10,padding:"4px 10px"}}>
               <div style={{color:"#8E8E93",fontSize:9}}>MES ACTUAL</div>
@@ -248,9 +400,9 @@ export default function App() {
             </div>
           </div>
 
-          {/* Nav colapsable */}
+          {/* Nav */}
           <div style={{padding:"8px 16px 0",position:"relative",zIndex:20}}>
-            <button onClick={()=>setNavOpen(p=>!p)} style={{width:"100%",padding:"8px 16px",borderRadius:14,border:"none",cursor:"pointer",background:T.card,backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <button onClick={()=>setNavOpen(p=>!p)} style={{width:"100%",padding:"8px 16px",borderRadius:14,border:"none",cursor:"pointer",background:T.card,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <span style={{color:"#fff",fontSize:13,fontWeight:600}}>
                 {view==="main"?"⚡ Registrar":view==="history"?"📋 Historial":view==="chart"?"📈 Gráfico":view==="giving"?"🙏 Diezmos":"⚙️ Config"}
               </span>
@@ -260,13 +412,16 @@ export default function App() {
               </span>
             </button>
             {navOpen && (
-              <div style={{position:"absolute",top:"100%",left:16,right:16,background:T.card,borderRadius:16,overflow:"hidden",boxShadow:"0 8px 32px rgba(0,0,0,0.7)",backdropFilter:"blur(20px)",marginTop:4}}>
+              <div style={{position:"absolute",top:"100%",left:16,right:16,background:T.card,borderRadius:16,overflow:"hidden",boxShadow:"0 8px 32px rgba(0,0,0,0.7)",marginTop:4}}>
                 {[["main","⚡","Registrar"],["history","📋","Historial"],["chart","📈","Gráfico"],["giving","🙏","Diezmos"],["settings","⚙️","Config"]].map(([v,icon,lbl])=>(
-                  <button key={v} onClick={()=>{setView(v);setNavOpen(false);}} style={{width:"100%",padding:"14px 18px",border:"none",cursor:"pointer",background:view===v?T.accent+"22":"transparent",color:view===v?T.accent:"#fff",fontSize:14,fontWeight:view===v?700:400,textAlign:"left",display:"flex",alignItems:"center",gap:10,borderLeft:view===v?`3px solid ${T.accent}`:"3px solid transparent",transition:"all 0.15s",boxSizing:"border-box"}}>
+                  <button key={v} onClick={()=>{setView(v);setNavOpen(false);}} style={{width:"100%",padding:"14px 18px",border:"none",cursor:"pointer",background:view===v?T.accent+"22":"transparent",color:view===v?T.accent:"#fff",fontSize:14,fontWeight:view===v?700:400,textAlign:"left",display:"flex",alignItems:"center",gap:10,borderLeft:view===v?`3px solid ${T.accent}`:"3px solid transparent",boxSizing:"border-box"}}>
                     <span style={{fontSize:18}}>{icon}</span>{lbl}
                     {view===v&&<span style={{marginLeft:"auto"}}>✓</span>}
                   </button>
                 ))}
+                <button onClick={handleLogout} style={{width:"100%",padding:"14px 18px",border:"none",cursor:"pointer",background:"transparent",color:"#FF453A",fontSize:14,textAlign:"left",display:"flex",alignItems:"center",gap:10,boxSizing:"border-box",borderTop:"1px solid #3A3A3C"}}>
+                  <span style={{fontSize:18}}>🚪</span>Cerrar sesión
+                </button>
               </div>
             )}
           </div>
@@ -317,8 +472,8 @@ export default function App() {
               ))}
             </div>
             <div style={{padding:"0 20px 30px"}}>
-              <button onClick={handleConfirm} disabled={!mode||display==="0"} style={{width:"100%",padding:"16px 0",borderRadius:18,border:"none",cursor:"pointer",background:!mode||display==="0"?"#3A3A3C":mode==="in"?"#30D158":"#FF453A",color:"#fff",fontSize:17,fontWeight:700,transition:"all 0.2s"}}>
-                ✓ CONFIRMAR
+              <button onClick={handleConfirm} disabled={!mode||display==="0"||saving} style={{width:"100%",padding:"16px 0",borderRadius:18,border:"none",cursor:"pointer",background:!mode||display==="0"?"#3A3A3C":mode==="in"?"#30D158":"#FF453A",color:"#fff",fontSize:17,fontWeight:700,transition:"all 0.2s"}}>
+                {saving?"Guardando...":"✓ CONFIRMAR"}
               </button>
             </div>
           </>)}
@@ -359,9 +514,9 @@ export default function App() {
                     <span style={{color:"#8E8E93",fontSize:13}}>Balance del mes</span>
                     <span style={{color:bal>=0?"#30D158":"#FF453A",fontSize:18,fontWeight:700}}>{fmt(bal,currency)}</span>
                   </div>
-                  {txs.length===0 ? (
+                  {txs.length===0?(
                     <div style={{textAlign:"center",color:"#8E8E93",marginTop:40}}><div style={{fontSize:48,marginBottom:10}}>💸</div>Sin movimientos</div>
-                  ) : txs.map(tx => (
+                  ):txs.map(tx=>(
                     <div key={tx.id} style={{background:T.card,borderRadius:16,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
                       <div style={{width:40,height:40,borderRadius:14,background:tx.category?tx.category.color+"33":"#3A3A3C",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
                         {tx.category?tx.category.emoji:tx.type==="in"?"↑":"↓"}
@@ -385,7 +540,6 @@ export default function App() {
               <div style={{color:"#fff",fontSize:20,fontWeight:700,marginBottom:14}}>📈 Gráficos</div>
               <div style={{background:T.card,borderRadius:20,padding:"16px",marginBottom:14}}>
                 <div style={{color:"#fff",fontSize:14,fontWeight:600,marginBottom:4}}>Comparación mensual</div>
-                <div style={{color:"#8E8E93",fontSize:11,marginBottom:12}}>Entradas vs Salidas por mes</div>
                 <BarChart months={allMonths} currency={currency}/>
                 <div style={{marginTop:12,borderTop:"1px solid #3A3A3C",paddingTop:10}}>
                   {allMonths.map(m=>(
@@ -406,17 +560,17 @@ export default function App() {
                 <Sparkline data={chartData} color={balColor} width={310} height={70}/>
               </div>
               <div style={{background:T.card,borderRadius:20,padding:"16px",marginBottom:14}}>
-                <div style={{color:"#8E8E93",fontSize:12,marginBottom:4}}>Gastos diarios este mes</div>
+                <div style={{color:"#8E8E93",fontSize:12,marginBottom:4}}>Gastos diarios</div>
                 <div style={{color:"#FF453A",fontSize:22,fontWeight:700,marginBottom:8}}>{fmt(totalOut,currency)}</div>
                 <Sparkline data={outByDay} color="#FF453A" width={310} height={70}/>
               </div>
               <div style={{background:T.card,borderRadius:20,padding:"16px"}}>
                 <div style={{color:"#fff",fontSize:14,fontWeight:600,marginBottom:12}}>Por categoría</div>
                 {cats.map(cat=>{
-                  const total = transactions.filter(t=>t.type==="out"&&t.category?.id===cat.id).reduce((s,t)=>s+t.amount,0);
-                  const pct = totalOut>0?(total/totalOut)*100:0;
-                  if (total===0) return null;
-                  return (
+                  const total=transactions.filter(t=>t.type==="out"&&t.category?.id===cat.id).reduce((s,t)=>s+t.amount,0);
+                  const pct=totalOut>0?(total/totalOut)*100:0;
+                  if(total===0)return null;
+                  return(
                     <div key={cat.id} style={{marginBottom:10}}>
                       <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
                         <span style={{color:"#fff",fontSize:12}}>{cat.emoji} {cat.label}</span>
@@ -440,7 +594,6 @@ export default function App() {
                 <div style={{color:"#fff",fontSize:20,fontWeight:700}}>🙏 Diezmos</div>
                 <button onClick={()=>exportCSV(transactions,giving,currency,budgetPct,budget)} style={{padding:"7px 12px",borderRadius:12,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>⬇️ CSV</button>
               </div>
-              <div style={{color:"#8E8E93",fontSize:12,marginBottom:14}}>Principios bíblicos • Personalizable</div>
               <div style={{display:"flex",gap:10,marginBottom:14}}>
                 <div style={{flex:1,background:T.card,borderRadius:14,padding:"12px"}}>
                   <div style={{color:"#8E8E93",fontSize:10}}>Ing. Brutos</div>
@@ -456,9 +609,9 @@ export default function App() {
                 <div style={{color:"#fff",fontSize:30,fontWeight:700}}>{fmt(totalGiving,currency)}</div>
               </div>
               {giving.map(g=>{
-                const base = g.baseType==="gross"?totalIn:Math.max(balance,0);
-                const amount = (base*g.pct)/100;
-                return (
+                const base=g.baseType==="gross"?totalIn:Math.max(balance,0);
+                const amount=(base*g.pct)/100;
+                return(
                   <div key={g.id} style={{background:T.card,borderRadius:18,padding:"14px 16px",marginBottom:10}}>
                     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
                       <div style={{width:42,height:42,borderRadius:14,background:g.color+"33",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{g.emoji}</div>
@@ -474,23 +627,19 @@ export default function App() {
                       </div>
                     </div>
                     <div style={{color:"#636366",fontSize:11,fontStyle:"italic",marginBottom:6}}>📖 {g.ref}</div>
-                    <div style={{display:"flex",gap:8}}>
-                      <button onClick={()=>{setEditGiv(g.id);setEditGivD({...g});}} style={{flex:1,padding:"7px",borderRadius:10,border:"none",background:"#3A3A3C",color:T.accent,fontSize:12,cursor:"pointer"}}>✏️ Editar</button>
-                      {!["diezmo","ofrenda","primicia"].includes(g.id)&&<button onClick={()=>setGiving(p=>p.filter(x=>x.id!==g.id))} style={{padding:"7px 12px",borderRadius:10,border:"none",background:"#FF453A22",color:"#FF453A",fontSize:12,cursor:"pointer"}}>🗑</button>}
-                    </div>
+                    <button onClick={()=>{setEditGiv(g.id);setEditGivD({...g});}} style={{width:"100%",padding:"7px",borderRadius:10,border:"none",background:"#3A3A3C",color:T.accent,fontSize:12,cursor:"pointer"}}>✏️ Editar</button>
                     {editGiv===g.id&&(
                       <div style={{background:"#3A3A3C",borderRadius:14,padding:"12px",marginTop:10}}>
-                        <input value={editGivD.name||""} onChange={e=>setEditGivD(p=>({...p,name:e.target.value}))} placeholder="Nombre" style={{width:"100%",padding:"8px 12px",borderRadius:10,border:"none",background:"#2C2C2E",color:"#fff",fontSize:14,outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
+                        <input value={editGivD.name||""} onChange={e=>setEditGivD(p=>({...p,name:e.target.value}))} style={{width:"100%",padding:"8px 12px",borderRadius:10,border:"none",background:"#2C2C2E",color:"#fff",fontSize:14,outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
                         <div style={{display:"flex",gap:8,marginBottom:8}}>
-                          <input type="number" value={editGivD.pct||""} onChange={e=>setEditGivD(p=>({...p,pct:e.target.value}))} placeholder="%" style={{flex:1,padding:"8px 12px",borderRadius:10,border:"none",background:"#2C2C2E",color:"#fff",fontSize:14,outline:"none"}}/>
+                          <input type="number" value={editGivD.pct||""} onChange={e=>setEditGivD(p=>({...p,pct:e.target.value}))} style={{flex:1,padding:"8px 12px",borderRadius:10,border:"none",background:"#2C2C2E",color:"#fff",fontSize:14,outline:"none"}}/>
                           <select value={editGivD.baseType||"gross"} onChange={e=>setEditGivD(p=>({...p,baseType:e.target.value}))} style={{flex:2,padding:"8px 10px",borderRadius:10,border:"none",background:"#2C2C2E",color:"#fff",fontSize:13,outline:"none"}}>
                             <option value="gross">Ingresos Brutos</option>
                             <option value="net">Ganancia Neta</option>
                           </select>
                         </div>
-                        <input value={editGivD.ref||""} onChange={e=>setEditGivD(p=>({...p,ref:e.target.value}))} placeholder="Referencia bíblica..." style={{width:"100%",padding:"8px 12px",borderRadius:10,border:"none",background:"#2C2C2E",color:"#fff",fontSize:13,outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
                         <div style={{display:"flex",gap:8}}>
-                          <button onClick={()=>{setGiving(p=>p.map(x=>x.id===editGiv?{...editGivD,pct:parseFloat(editGivD.pct)||0}:x));setEditGiv(null);}} style={{flex:1,padding:"8px",borderRadius:10,border:"none",background:T.accent,color:"#fff",fontWeight:700,cursor:"pointer"}}>Guardar</button>
+                          <button onClick={()=>{setGiving(p=>p.map(x=>x.id===editGiv?{...editGivD,pct:parseFloat(editGivD.pct)||0}:x));setEditGiv(null);saveConfig({giving});}} style={{flex:1,padding:"8px",borderRadius:10,border:"none",background:T.accent,color:"#fff",fontWeight:700,cursor:"pointer"}}>Guardar</button>
                           <button onClick={()=>setEditGiv(null)} style={{flex:1,padding:"8px",borderRadius:10,border:"none",background:"#2C2C2E",color:"#8E8E93",cursor:"pointer"}}>Cancelar</button>
                         </div>
                       </div>
@@ -498,9 +647,6 @@ export default function App() {
                   </div>
                 );
               })}
-              <button onClick={()=>setGiving(p=>[...p,{id:"c_"+Date.now(),name:"Ofrenda Especial",pct:1,baseType:"gross",ref:"Personalizado",color:"#06B6D4",emoji:"✨",active:true}])} style={{width:"100%",padding:"14px",borderRadius:16,border:`2px dashed ${T.accent}44`,background:"transparent",color:T.accent,fontSize:14,fontWeight:600,cursor:"pointer"}}>
-                + Agregar ofrenda personalizada
-              </button>
             </div>
           )}
 
@@ -508,6 +654,13 @@ export default function App() {
           {view==="settings" && (
             <div style={{flex:1,overflowY:"auto",padding:"16px 20px 30px"}}>
               <div style={{color:"#fff",fontSize:20,fontWeight:700,marginBottom:16}}>⚙️ Configuración</div>
+
+              {/* User info */}
+              <div style={{background:T.card,borderRadius:18,padding:"16px",marginBottom:14}}>
+                <div style={{color:"#8E8E93",fontSize:11,marginBottom:4}}>CUENTA</div>
+                <div style={{color:"#fff",fontSize:14,fontWeight:600}}>{user?.email}</div>
+              </div>
+
               <div style={{background:T.card,borderRadius:18,padding:"16px",marginBottom:14}}>
                 <div style={{color:"#fff",fontSize:14,fontWeight:600,marginBottom:4}}>📅 Gestión de Meses</div>
                 <div style={{background:"#3A3A3C",borderRadius:12,padding:"10px 14px",marginBottom:10}}>
@@ -518,52 +671,39 @@ export default function App() {
                 <button onClick={closeMonth} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"#FF453A22",color:"#FF453A",fontSize:13,fontWeight:700,cursor:"pointer"}}>
                   🔄 Cerrar mes y comenzar nuevo
                 </button>
-                {Object.keys(monthlyData).length>0&&(
-                  <div style={{marginTop:12}}>
-                    <div style={{color:"#8E8E93",fontSize:11,marginBottom:8}}>MESES ARCHIVADOS</div>
-                    {Object.entries(monthlyData).sort((a,b)=>b[0].localeCompare(a[0])).map(([mk,d])=>(
-                      <div key={mk} style={{background:"#3A3A3C",borderRadius:10,padding:"8px 12px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                        <span style={{color:"#fff",fontSize:12}}>{monthLabel(mk)}</span>
-                        <span style={{color:d.balance>=0?"#30D158":"#FF453A",fontSize:12,fontWeight:600}}>{fmt(d.balance,currency)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
+
               <div style={{background:T.card,borderRadius:18,padding:"16px",marginBottom:14}}>
                 <div style={{color:"#fff",fontSize:14,fontWeight:600,marginBottom:10}}>💱 Moneda</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
                   {CURRENCIES.map(c=>(
-                    <button key={c.code} onClick={()=>setCurrency(c)} style={{padding:"8px 14px",borderRadius:12,border:`2px solid ${currency.code===c.code?T.accent:"transparent"}`,background:currency.code===c.code?T.accent+"22":"#3A3A3C",color:currency.code===c.code?T.accent:"#8E8E93",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+                    <button key={c.code} onClick={()=>{setCurrency(c);saveConfig({currency_code:c.code});}} style={{padding:"8px 14px",borderRadius:12,border:`2px solid ${currency.code===c.code?T.accent:"transparent"}`,background:currency.code===c.code?T.accent+"22":"#3A3A3C",color:currency.code===c.code?T.accent:"#8E8E93",fontSize:13,fontWeight:600,cursor:"pointer"}}>
                       {c.symbol} {c.code}
                     </button>
                   ))}
                 </div>
               </div>
+
               <div style={{background:T.card,borderRadius:18,padding:"16px",marginBottom:14}}>
                 <div style={{color:"#fff",fontSize:14,fontWeight:600,marginBottom:10}}>🎯 Presupuesto Mensual</div>
                 <div style={{display:"flex",gap:8}}>
                   <input value={budgetInput} onChange={e=>setBudgetInput(e.target.value)} style={{flex:1,padding:"10px 14px",borderRadius:12,border:"none",background:"#3A3A3C",color:"#fff",fontSize:14,outline:"none"}}/>
-                  <button onClick={()=>{const v=parseFloat(budgetInput);if(v>0)setBudget(v);}} style={{padding:"10px 16px",borderRadius:12,border:"none",background:T.accent,color:"#fff",fontWeight:700,cursor:"pointer"}}>OK</button>
+                  <button onClick={()=>{const v=parseFloat(budgetInput);if(v>0){setBudget(v);saveConfig({budget:v});}}} style={{padding:"10px 16px",borderRadius:12,border:"none",background:T.accent,color:"#fff",fontWeight:700,cursor:"pointer"}}>OK</button>
                 </div>
               </div>
+
               <div style={{background:T.card,borderRadius:18,padding:"16px",marginBottom:14}}>
                 <div style={{color:"#fff",fontSize:14,fontWeight:600,marginBottom:10}}>🎨 Tema</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
                   {THEMES.map(t=>(
-                    <button key={t.id} onClick={()=>{setTheme(t);setCustomBg(null);}} style={{padding:"10px 6px",borderRadius:14,border:`2px solid ${theme.id===t.id&&!customBg?t.accent:"transparent"}`,background:t.bg,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                    <button key={t.id} onClick={()=>{setTheme(t);setCustomBg(null);saveConfig({theme_id:t.id});}} style={{padding:"10px 6px",borderRadius:14,border:`2px solid ${theme.id===t.id&&!customBg?t.accent:"transparent"}`,background:t.bg,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
                       <div style={{width:24,height:24,borderRadius:8,background:t.accent}}/>
                       <span style={{color:"#fff",fontSize:10,fontWeight:600}}>{t.name}</span>
                     </button>
                   ))}
                 </div>
-                <div style={{color:"#8E8E93",fontSize:12,marginBottom:6}}>🖼 Imagen de fondo (URL)</div>
-                <div style={{display:"flex",gap:8}}>
-                  <input placeholder="https://..." id="bgurl" style={{flex:1,padding:"9px 12px",borderRadius:12,border:"none",background:"#3A3A3C",color:"#fff",fontSize:13,outline:"none"}}/>
-                  <button onClick={()=>{const v=document.getElementById("bgurl").value.trim();if(v)setCustomBg(v);}} style={{padding:"9px 14px",borderRadius:12,border:"none",background:T.accent,color:"#fff",fontWeight:700,cursor:"pointer",fontSize:13}}>Set</button>
-                </div>
-                {customBg&&<button onClick={()=>setCustomBg(null)} style={{marginTop:8,padding:"7px 14px",borderRadius:10,border:"none",background:"#FF453A33",color:"#FF453A",fontSize:13,cursor:"pointer"}}>✕ Quitar</button>}
               </div>
+
               <div style={{background:T.card,borderRadius:18,padding:"16px"}}>
                 <div style={{color:"#fff",fontSize:14,fontWeight:600,marginBottom:10}}>🏷 Categorías</div>
                 {cats.map(cat=>(
@@ -592,7 +732,7 @@ export default function App() {
                           ))}
                         </div>
                         <div style={{display:"flex",gap:8}}>
-                          <button onClick={()=>{setCats(p=>p.map(c=>c.id===editCat?{...editCatD}:c));setEditCat(null);}} style={{flex:1,padding:"8px",borderRadius:10,border:"none",background:T.accent,color:"#fff",fontWeight:700,cursor:"pointer"}}>Guardar</button>
+                          <button onClick={()=>{const updated=cats.map(c=>c.id===editCat?{...editCatD}:c);setCats(updated);setEditCat(null);saveConfig({categories:updated});}} style={{flex:1,padding:"8px",borderRadius:10,border:"none",background:T.accent,color:"#fff",fontWeight:700,cursor:"pointer"}}>Guardar</button>
                           <button onClick={()=>setEditCat(null)} style={{flex:1,padding:"8px",borderRadius:10,border:"none",background:"#2C2C2E",color:"#8E8E93",cursor:"pointer"}}>Cancelar</button>
                         </div>
                       </div>
@@ -602,7 +742,6 @@ export default function App() {
               </div>
             </div>
           )}
-
         </div>
       </div>
     </div>
