@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 const EMOJIS = ["🍔","🎮","🏠","🚗","💼","🛒","✈️","🎵","💊","📚","🍕","☕","🐶","👗","💇","🏋️","🎬","🍺","💻","📱","🎁","🔧","🏥","⚡","🌮","🍣","🎯","🚀","💰","🏦","🎪","🌿","🍷","🎸","🏄","🎨"];
 const DEFAULT_CATS = [
@@ -44,7 +44,6 @@ const fmt = (n, cur) => {
 const fmtDate = (ts) => new Date(ts).toLocaleDateString("es-CO",{day:"2-digit",month:"short",year:"numeric"})+" "+new Date(ts).toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"});
 const fmtShort = (ts) => new Date(ts).toLocaleDateString("es-CO",{day:"2-digit",month:"2-digit",year:"numeric"});
 
-// ── Bar chart comparing months ──
 const BarChart = ({ months, currency }) => {
   if (!months || months.length === 0) return <div style={{color:"#8E8E93",fontSize:13,textAlign:"center",padding:"30px 0"}}>Sin datos históricos aún</div>;
   const maxVal = Math.max(...months.flatMap(m => [m.totalIn, m.totalOut]), 1);
@@ -56,11 +55,7 @@ const BarChart = ({ months, currency }) => {
   return (
     <div style={{overflowX:"auto",paddingBottom:4}}>
       <svg width={Math.max(totalW + 20, 320)} height={chartH + 50} style={{display:"block"}}>
-        {/* Grid lines */}
-        {[0,0.25,0.5,0.75,1].map(p => {
-          const y = chartH - p * chartH + 2;
-          return <line key={p} x1={0} y1={y} x2={totalW+20} y2={y} stroke="#3A3A3C" strokeWidth="1" strokeDasharray="4,4"/>;
-        })}
+        {[0,0.25,0.5,0.75,1].map(p => <line key={p} x1={0} y1={chartH - p*chartH + 2} x2={totalW+20} y2={chartH - p*chartH + 2} stroke="#3A3A3C" strokeWidth="1" strokeDasharray="4,4"/>)}
         {months.map((m, i) => {
           const x = i * groupW + gap;
           const inH = maxVal > 0 ? (m.totalIn / maxVal) * (chartH - 4) : 0;
@@ -68,16 +63,12 @@ const BarChart = ({ months, currency }) => {
           const lbl = m.key.split("-")[1] + "/" + m.key.split("-")[0].slice(2);
           return (
             <g key={m.key}>
-              {/* Income bar */}
               <rect x={x} y={chartH - inH + 2} width={barW} height={Math.max(inH,2)} rx={4} fill="#30D158" opacity="0.85"/>
-              {/* Expense bar */}
               <rect x={x + barW + gap} y={chartH - outH + 2} width={barW} height={Math.max(outH,2)} rx={4} fill="#FF453A" opacity="0.85"/>
-              {/* Month label */}
               <text x={x + barW + gap/2} y={chartH + 18} textAnchor="middle" fill="#8E8E93" fontSize="9">{lbl}</text>
             </g>
           );
         })}
-        {/* Legend */}
         <rect x={0} y={chartH + 30} width={10} height={10} rx={2} fill="#30D158"/>
         <text x={14} y={chartH + 40} fill="#8E8E93" fontSize="10">Entradas</text>
         <rect x={70} y={chartH + 30} width={10} height={10} rx={2} fill="#FF453A"/>
@@ -87,7 +78,6 @@ const BarChart = ({ months, currency }) => {
   );
 };
 
-// Sparkline
 const Sparkline = ({ data, color, width=300, height=70 }) => {
   if (!data || data.length < 2) return null;
   const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
@@ -108,22 +98,22 @@ const Sparkline = ({ data, color, width=300, height=70 }) => {
 };
 
 const exportCSV = (txs, giving, cur, budgetPct, budget) => {
-  const totalIn = txs.filter(t=>t.type==="in").reduce((s,t)=>s+t.amount,0);
-  const totalOut = txs.filter(t=>t.type==="out").reduce((s,t)=>s+t.amount,0);
-  const bal = totalIn - totalOut;
+  const tIn = txs.filter(t=>t.type==="in").reduce((s,t)=>s+t.amount,0);
+  const tOut = txs.filter(t=>t.type==="out").reduce((s,t)=>s+t.amount,0);
+  const bal = tIn - tOut;
   let csv = "\uFEFF";
-  csv += `REPORTE FINANCIERO FINFLOW PRO\nGenerado:,${new Date().toLocaleDateString("es-CO",{dateStyle:"full"})}\nMoneda:,${cur.code}\n\n`;
-  csv += `RESUMEN\nEntradas,${totalIn.toFixed(2)}\nSalidas,${totalOut.toFixed(2)}\nBalance,${bal.toFixed(2)}\nPresupuesto,${budget.toFixed(2)}\nUso,${budgetPct.toFixed(1)}%\n\n`;
+  csv += `PA DONDE SE FUE LA PLATA - REPORTE\nGenerado:,${new Date().toLocaleDateString("es-CO",{dateStyle:"full"})}\nMoneda:,${cur.code}\n\n`;
+  csv += `RESUMEN\nEntradas,${tIn.toFixed(2)}\nSalidas,${tOut.toFixed(2)}\nBalance,${bal.toFixed(2)}\nPresupuesto,${budget.toFixed(2)}\nUso,${budgetPct.toFixed(1)}%\n\n`;
   csv += `DIEZMOS Y OFRENDAS\nConcepto,Porcentaje,Base,Monto\n`;
   giving.filter(g=>g.active).forEach(g => {
-    const base = g.baseType==="gross" ? totalIn : Math.max(bal,0);
+    const base = g.baseType==="gross" ? tIn : Math.max(bal,0);
     csv += `"${g.name}",${g.pct}%,"${g.baseType==="gross"?"Brutos":"Neta"}",${((base*g.pct)/100).toFixed(2)}\n`;
   });
   csv += `\nMOVIMIENTOS\nFecha,Tipo,Monto,Categoría,Nota\n`;
   txs.forEach(t => { csv += `${fmtShort(t.timestamp)},${t.type==="in"?"Entrada":"Salida"},${t.amount.toFixed(2)},${t.category?.label||"Sin categoría"},"${(t.note||"").replace(/,/g,";")}"\n`; });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));
-  a.download = `FinFlow_${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `PaDondeSeFueLaPlata_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
 };
 
@@ -146,25 +136,17 @@ export default function App() {
   const [giving, setGiving] = useState(DEFAULT_GIVING);
   const [editGiv, setEditGiv] = useState(null);
   const [editGivD, setEditGivD] = useState({});
-  const [selectedMonth, setSelectedMonth] = useState(null); // for history chart drill-down
-
-  // monthlyData: { [monthKey]: { transactions: [], budget, budgetPct } }
+  const [selectedMonth, setSelectedMonth] = useState(null);
   const [monthlyData, setMonthlyData] = useState({});
-  // current month transactions
   const [transactions, setTransactions] = useState([]);
   const [activeMk, setActiveMk] = useState(currentMonthKey());
 
-  // Check if month rolled over
   useEffect(() => {
     const mk = currentMonthKey();
     if (mk !== activeMk) {
-      // Archive old month
-      const totalIn = transactions.filter(t=>t.type==="in").reduce((s,t)=>s+t.amount,0);
-      const totalOut = transactions.filter(t=>t.type==="out").reduce((s,t)=>s+t.amount,0);
-      setMonthlyData(prev => ({
-        ...prev,
-        [activeMk]: { transactions, totalIn, totalOut, balance: totalIn-totalOut, budget }
-      }));
+      const tIn = transactions.filter(t=>t.type==="in").reduce((s,t)=>s+t.amount,0);
+      const tOut = transactions.filter(t=>t.type==="out").reduce((s,t)=>s+t.amount,0);
+      setMonthlyData(prev => ({ ...prev, [activeMk]: { transactions, totalIn:tIn, totalOut:tOut, balance:tIn-tOut, budget } }));
       setTransactions([]);
       setActiveMk(mk);
     }
@@ -184,7 +166,6 @@ export default function App() {
   }), [giving, totalIn, balance]);
   const totalGiving = givingCalc.reduce((s,g)=>s+g.amount,0);
 
-  // All months sorted for charts
   const allMonths = useMemo(() => {
     const current = { key: activeMk, totalIn, totalOut, balance, transactions };
     const archived = Object.entries(monthlyData).map(([k,v]) => ({ key:k, ...v }));
@@ -219,29 +200,19 @@ export default function App() {
     setDisplay("0"); setNote(""); setMode(null); setSelCat(null);
   };
 
-  // Manual month close (for demo/testing)
   const closeMonth = () => {
-    const mk = activeMk;
     const tIn = transactions.filter(t=>t.type==="in").reduce((s,t)=>s+t.amount,0);
     const tOut = transactions.filter(t=>t.type==="out").reduce((s,t)=>s+t.amount,0);
-    setMonthlyData(prev => ({
-      ...prev,
-      [mk]: { transactions, totalIn:tIn, totalOut:tOut, balance:tIn-tOut, budget }
-    }));
-    // Simulate next month
-    const [y,m] = mk.split("-").map(Number);
+    setMonthlyData(prev => ({ ...prev, [activeMk]: { transactions, totalIn:tIn, totalOut:tOut, balance:tIn-tOut, budget } }));
+    const [y,m] = activeMk.split("-").map(Number);
     const next = m===12 ? `${y+1}-01` : `${y}-${String(m+1).padStart(2,"0")}`;
-    setTransactions([]);
-    setActiveMk(next);
+    setTransactions([]); setActiveMk(next);
   };
 
   const T = theme;
   const bgStyle = customBg ? {backgroundImage:`url(${customBg})`,backgroundSize:"cover",backgroundPosition:"center"} : {background:T.bg};
   const keys = ["7","8","9","4","5","6","1","2","3","C","0","⌫"];
   const balColor = balance>=0?"#30D158":"#FF453A";
-
-  // Drill-down month
-  const drillMonth = selectedMonth ? (monthlyData[selectedMonth] || (selectedMonth===activeMk ? {transactions,totalIn,totalOut,balance} : null)) : null;
 
   return (
     <div style={{minHeight:"100vh",background:"#111",display:"flex",justifyContent:"center",alignItems:"center",fontFamily:"-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif"}}>
@@ -250,27 +221,35 @@ export default function App() {
         <div style={{position:"relative",zIndex:1,display:"flex",flexDirection:"column",flex:1}}>
 
           {/* Status bar */}
-          <div style={{height:50,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 30px",paddingTop:14}}>
+          <div style={{height:44,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 30px",paddingTop:14}}>
             <span style={{color:"#fff",fontSize:15,fontWeight:600}}>9:41</span>
             <div style={{width:120,height:30,background:"#000",borderRadius:20,position:"absolute",left:"50%",transform:"translateX(-50%)",top:10}}/>
             <span style={{color:"#fff",fontSize:12}}>●●● 📶 🔋</span>
           </div>
 
-          {/* Budget corner */}
-          <div style={{position:"absolute",top:60,right:16,background:budgetColor+"22",border:`1px solid ${budgetColor}44`,borderRadius:14,padding:"6px 10px",textAlign:"center",backdropFilter:"blur(10px)",zIndex:10}}>
-            <div style={{fontSize:16}}>{budgetEmoji}</div>
-            <div style={{color:budgetColor,fontSize:10,fontWeight:700}}>{budgetMsg}</div>
-            <div style={{color:budgetColor,fontSize:10}}>{budgetPct.toFixed(0)}%</div>
+          {/* App title */}
+          <div style={{textAlign:"center",padding:"6px 20px 0"}}>
+            <div style={{color:"#fff",fontSize:15,fontWeight:800,letterSpacing:-0.5}}>💸 Pa' Donde Se Fue La Plata</div>
+            <div style={{color:T.accent,fontSize:9,fontWeight:600,letterSpacing:1}}>FINANZAS PARA MENTES ACTIVAS</div>
           </div>
 
-          {/* Month badge */}
-          <div style={{position:"absolute",top:60,left:16,background:T.card+"cc",borderRadius:12,padding:"5px 10px",backdropFilter:"blur(10px)",zIndex:10}}>
-            <div style={{color:"#8E8E93",fontSize:9}}>MES ACTUAL</div>
-            <div style={{color:"#fff",fontSize:11,fontWeight:700}}>{monthLabel(activeMk)}</div>
+          {/* Mes + Presupuesto — siempre visible debajo del título */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 16px 0"}}>
+            <div style={{background:T.card,borderRadius:10,padding:"4px 10px"}}>
+              <div style={{color:"#8E8E93",fontSize:9}}>MES ACTUAL</div>
+              <div style={{color:"#fff",fontSize:11,fontWeight:700}}>{monthLabel(activeMk)}</div>
+            </div>
+            <div style={{background:budgetColor+"22",border:`1px solid ${budgetColor}44`,borderRadius:10,padding:"4px 12px",display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:14}}>{budgetEmoji}</span>
+              <div>
+                <div style={{color:budgetColor,fontSize:11,fontWeight:700}}>{budgetMsg}</div>
+                <div style={{color:budgetColor,fontSize:9}}>{budgetPct.toFixed(0)}% del presupuesto</div>
+              </div>
+            </div>
           </div>
 
-          {/* Nav */}
-          <div style={{padding:"10px 16px 0",position:"relative",zIndex:20}}>
+          {/* Nav colapsable */}
+          <div style={{padding:"8px 16px 0",position:"relative",zIndex:20}}>
             <button onClick={()=>setNavOpen(p=>!p)} style={{width:"100%",padding:"8px 16px",borderRadius:14,border:"none",cursor:"pointer",background:T.card,backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <span style={{color:"#fff",fontSize:13,fontWeight:600}}>
                 {view==="main"?"⚡ Registrar":view==="history"?"📋 Historial":view==="chart"?"📈 Gráfico":view==="giving"?"🙏 Diezmos":"⚙️ Config"}
@@ -294,7 +273,7 @@ export default function App() {
 
           {/* ── MAIN ── */}
           {view==="main" && (<>
-            <div style={{textAlign:"center",padding:"14px 20px 8px"}}>
+            <div style={{textAlign:"center",padding:"12px 20px 8px"}}>
               <div style={{color:"#8E8E93",fontSize:12,marginBottom:2}}>Balance • {currency.code}</div>
               <div style={{color:balColor,fontSize:40,fontWeight:700,letterSpacing:-1}}>{fmt(balance,currency)}</div>
               <div style={{margin:"8px 0 0",background:T.card,borderRadius:10,overflow:"hidden",height:6}}>
@@ -307,12 +286,12 @@ export default function App() {
             </div>
             <div style={{display:"flex",gap:12,padding:"0 20px 10px"}}>
               {[{type:"in",label:"ENTRADA",color:"#30D158"},{type:"out",label:"SALIDA",color:"#FF453A"}].map(({type,label,color})=>(
-                <button key={type} onClick={()=>setMode(mode===type?null:type)} style={{flex:1,padding:"14px 0",borderRadius:18,border:"none",cursor:"pointer",background:mode===type?color:T.card,color:mode===type?"#fff":color,fontSize:16,fontWeight:700,boxShadow:mode===type?`0 4px 20px ${color}55`:"none",backdropFilter:"blur(8px)",transition:"all 0.2s"}}>
+                <button key={type} onClick={()=>setMode(mode===type?null:type)} style={{flex:1,padding:"14px 0",borderRadius:18,border:"none",cursor:"pointer",background:mode===type?color:T.card,color:mode===type?"#fff":color,fontSize:16,fontWeight:700,boxShadow:mode===type?`0 4px 20px ${color}55`:"none",transition:"all 0.2s"}}>
                   {type==="in"?"↑":"↓"} {label}
                 </button>
               ))}
             </div>
-            <div style={{margin:"0 20px 10px",background:T.card,borderRadius:18,padding:"12px 20px",textAlign:"right",backdropFilter:"blur(8px)"}}>
+            <div style={{margin:"0 20px 10px",background:T.card,borderRadius:18,padding:"12px 20px",textAlign:"right"}}>
               <div style={{color:"#8E8E93",fontSize:11,textAlign:"left"}}>{mode?(mode==="in"?"💚 Entrada":"🔴 Salida"):"Selecciona modo"}</div>
               <div style={{color:"#fff",fontSize:36,fontWeight:300}}>$ {display}</div>
             </div>
@@ -320,7 +299,7 @@ export default function App() {
               <div style={{color:"#8E8E93",fontSize:11,marginBottom:6}}>CATEGORÍA</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
                 {cats.map(cat=>(
-                  <button key={cat.id} onClick={()=>setSelCat(selCat===cat.id?null:cat.id)} style={{padding:"10px 6px",borderRadius:14,border:selCat===cat.id?`2px solid ${cat.color}`:"2px solid transparent",background:selCat===cat.id?cat.color+"22":T.card,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,backdropFilter:"blur(8px)",transition:"all 0.15s"}}>
+                  <button key={cat.id} onClick={()=>setSelCat(selCat===cat.id?null:cat.id)} style={{padding:"10px 6px",borderRadius:14,border:selCat===cat.id?`2px solid ${cat.color}`:"2px solid transparent",background:selCat===cat.id?cat.color+"22":T.card,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,transition:"all 0.15s"}}>
                     <span style={{fontSize:20}}>{cat.emoji}</span>
                     <span style={{color:selCat===cat.id?cat.color:"#8E8E93",fontSize:10,fontWeight:600}}>{cat.label}</span>
                   </button>
@@ -332,7 +311,7 @@ export default function App() {
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,padding:"0 20px 10px"}}>
               {keys.map(k=>(
-                <button key={k} onClick={()=>handleKey(k)} style={{padding:"14px 0",borderRadius:16,border:"none",cursor:"pointer",background:k==="C"?"#FF453A33":T.card,color:k==="C"?"#FF453A":"#fff",fontSize:k==="⌫"?20:22,fontWeight:500,backdropFilter:"blur(8px)"}}>
+                <button key={k} onClick={()=>handleKey(k)} style={{padding:"14px 0",borderRadius:16,border:"none",cursor:"pointer",background:k==="C"?"#FF453A33":T.card,color:k==="C"?"#FF453A":"#fff",fontSize:k==="⌫"?20:22,fontWeight:500}}>
                   {k}
                 </button>
               ))}
@@ -351,14 +330,10 @@ export default function App() {
                 <div style={{color:"#fff",fontSize:20,fontWeight:700}}>Historial</div>
                 <button onClick={()=>exportCSV(transactions,giving,currency,budgetPct,budget)} style={{padding:"8px 14px",borderRadius:12,border:"none",background:T.accent,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>⬇️ CSV</button>
               </div>
-
-              {/* Month selector */}
               <div style={{marginBottom:14}}>
                 <div style={{color:"#8E8E93",fontSize:11,marginBottom:8}}>SELECCIONAR MES</div>
                 <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4}}>
-                  <button onClick={()=>setSelectedMonth(null)} style={{padding:"8px 14px",borderRadius:12,border:"none",cursor:"pointer",background:selectedMonth===null?T.accent:T.card,color:selectedMonth===null?"#fff":"#8E8E93",fontSize:12,fontWeight:600,whiteSpace:"nowrap"}}>
-                    Actual
-                  </button>
+                  <button onClick={()=>setSelectedMonth(null)} style={{padding:"8px 14px",borderRadius:12,border:"none",cursor:"pointer",background:selectedMonth===null?T.accent:T.card,color:selectedMonth===null?"#fff":"#8E8E93",fontSize:12,fontWeight:600,whiteSpace:"nowrap"}}>Actual</button>
                   {Object.keys(monthlyData).sort((a,b)=>b.localeCompare(a)).map(mk=>(
                     <button key={mk} onClick={()=>setSelectedMonth(mk)} style={{padding:"8px 14px",borderRadius:12,border:"none",cursor:"pointer",background:selectedMonth===mk?T.accent:T.card,color:selectedMonth===mk?"#fff":"#8E8E93",fontSize:12,fontWeight:600,whiteSpace:"nowrap"}}>
                       {monthLabel(mk).split(" ")[0]}
@@ -366,8 +341,6 @@ export default function App() {
                   ))}
                 </div>
               </div>
-
-              {/* Showing current or archived */}
               {(() => {
                 const txs = selectedMonth ? (monthlyData[selectedMonth]?.transactions||[]) : transactions;
                 const tIn = selectedMonth ? (monthlyData[selectedMonth]?.totalIn||0) : totalIn;
@@ -410,13 +383,10 @@ export default function App() {
           {view==="chart" && (
             <div style={{flex:1,overflowY:"auto",padding:"16px 20px 30px"}}>
               <div style={{color:"#fff",fontSize:20,fontWeight:700,marginBottom:14}}>📈 Gráficos</div>
-
-              {/* Monthly comparison bar chart */}
-              <div style={{background:T.card,borderRadius:20,padding:"16px",marginBottom:14,backdropFilter:"blur(8px)"}}>
+              <div style={{background:T.card,borderRadius:20,padding:"16px",marginBottom:14}}>
                 <div style={{color:"#fff",fontSize:14,fontWeight:600,marginBottom:4}}>Comparación mensual</div>
                 <div style={{color:"#8E8E93",fontSize:11,marginBottom:12}}>Entradas vs Salidas por mes</div>
                 <BarChart months={allMonths} currency={currency}/>
-                {/* Month stats below chart */}
                 <div style={{marginTop:12,borderTop:"1px solid #3A3A3C",paddingTop:10}}>
                   {allMonths.map(m=>(
                     <div key={m.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -430,24 +400,18 @@ export default function App() {
                   ))}
                 </div>
               </div>
-
-              {/* Balance line */}
-              <div style={{background:T.card,borderRadius:20,padding:"16px",marginBottom:14,backdropFilter:"blur(8px)"}}>
+              <div style={{background:T.card,borderRadius:20,padding:"16px",marginBottom:14}}>
                 <div style={{color:"#8E8E93",fontSize:12,marginBottom:4}}>Balance este mes</div>
                 <div style={{color:balColor,fontSize:22,fontWeight:700,marginBottom:8}}>{fmt(balance,currency)}</div>
                 <Sparkline data={chartData} color={balColor} width={310} height={70}/>
               </div>
-
-              {/* Gastos line */}
-              <div style={{background:T.card,borderRadius:20,padding:"16px",marginBottom:14,backdropFilter:"blur(8px)"}}>
+              <div style={{background:T.card,borderRadius:20,padding:"16px",marginBottom:14}}>
                 <div style={{color:"#8E8E93",fontSize:12,marginBottom:4}}>Gastos diarios este mes</div>
                 <div style={{color:"#FF453A",fontSize:22,fontWeight:700,marginBottom:8}}>{fmt(totalOut,currency)}</div>
                 <Sparkline data={outByDay} color="#FF453A" width={310} height={70}/>
               </div>
-
-              {/* Category breakdown */}
-              <div style={{background:T.card,borderRadius:20,padding:"16px",backdropFilter:"blur(8px)"}}>
-                <div style={{color:"#fff",fontSize:14,fontWeight:600,marginBottom:12}}>Por categoría (mes actual)</div>
+              <div style={{background:T.card,borderRadius:20,padding:"16px"}}>
+                <div style={{color:"#fff",fontSize:14,fontWeight:600,marginBottom:12}}>Por categoría</div>
                 {cats.map(cat=>{
                   const total = transactions.filter(t=>t.type==="out"&&t.category?.id===cat.id).reduce((s,t)=>s+t.amount,0);
                   const pct = totalOut>0?(total/totalOut)*100:0;
@@ -544,22 +508,19 @@ export default function App() {
           {view==="settings" && (
             <div style={{flex:1,overflowY:"auto",padding:"16px 20px 30px"}}>
               <div style={{color:"#fff",fontSize:20,fontWeight:700,marginBottom:16}}>⚙️ Configuración</div>
-
-              {/* Month management */}
               <div style={{background:T.card,borderRadius:18,padding:"16px",marginBottom:14}}>
                 <div style={{color:"#fff",fontSize:14,fontWeight:600,marginBottom:4}}>📅 Gestión de Meses</div>
-                <div style={{color:"#8E8E93",fontSize:12,marginBottom:10}}>El mes se reinicia automáticamente. También puedes cerrarlo manualmente.</div>
                 <div style={{background:"#3A3A3C",borderRadius:12,padding:"10px 14px",marginBottom:10}}>
                   <div style={{color:"#8E8E93",fontSize:11}}>Mes activo</div>
                   <div style={{color:"#fff",fontSize:14,fontWeight:600}}>{monthLabel(activeMk)}</div>
-                  <div style={{color:"#8E8E93",fontSize:11,marginTop:2}}>{transactions.length} movimientos registrados</div>
+                  <div style={{color:"#8E8E93",fontSize:11,marginTop:2}}>{transactions.length} movimientos</div>
                 </div>
                 <button onClick={closeMonth} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"#FF453A22",color:"#FF453A",fontSize:13,fontWeight:700,cursor:"pointer"}}>
                   🔄 Cerrar mes y comenzar nuevo
                 </button>
                 {Object.keys(monthlyData).length>0&&(
                   <div style={{marginTop:12}}>
-                    <div style={{color:"#8E8E93",fontSize:11,marginBottom:8}}>MESES ARCHIVADOS ({Object.keys(monthlyData).length})</div>
+                    <div style={{color:"#8E8E93",fontSize:11,marginBottom:8}}>MESES ARCHIVADOS</div>
                     {Object.entries(monthlyData).sort((a,b)=>b[0].localeCompare(a[0])).map(([mk,d])=>(
                       <div key={mk} style={{background:"#3A3A3C",borderRadius:10,padding:"8px 12px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <span style={{color:"#fff",fontSize:12}}>{monthLabel(mk)}</span>
@@ -569,7 +530,6 @@ export default function App() {
                   </div>
                 )}
               </div>
-
               <div style={{background:T.card,borderRadius:18,padding:"16px",marginBottom:14}}>
                 <div style={{color:"#fff",fontSize:14,fontWeight:600,marginBottom:10}}>💱 Moneda</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
